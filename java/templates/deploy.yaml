@@ -16,6 +16,6 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: bharath0812/java:10.0
+        image: alinabagwan12345/java:1.0
         ports:
         - containerPort: 8080
