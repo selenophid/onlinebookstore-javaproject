@@ -1,0 +1,55 @@
+pipeline {
+    agent any
+    
+    tools{
+        maven 'maven'
+    }
+    environment {
+        registry = "alinabagwan12345/java"
+        BUILD_NUMBER='1.0'
+        registryCredential = 'docker-hub'
+    }
+
+    stages {
+        stage('GitCheckout') {
+            steps {
+                git 'https://github.com/selenophid/onlinebookstore-javaproject.git'
+            }
+        }
+        
+          stage("maven build"){
+              steps {
+                  sh 'mvn clean install'
+              }
+          }
+       
+         stage('docker-build'){
+            steps{
+                script {
+                dockerImage = docker.build registry + ":$BUILD_NUMBER"
+              }
+            }
+        }
+        stage ('docker image scan by trivy'){
+            steps{
+                sh 'trivy image $registry:$BUILD_NUMBER'
+            }
+        }
+        stage('docker-image push to hub'){
+            steps{
+                script {
+                  docker.withRegistry( '', registryCredential ) {
+                  dockerImage.push("$BUILD_NUMBER")
+              }
+            }
+            }
+        }
+        stage('deploy into kubernetes using helm chart'){
+            steps {
+                 withKubeConfig(caCertificate: '', clusterName: '', contextName: '', credentialsId: 'k8s', namespace: 'default', restrictKubeConfigAccess: false, serverUrl: 'https://172.31.62.31:6443') {
+                     sh 'helm install v-1 java'
+}
+            }
+        }
+    }
+}
