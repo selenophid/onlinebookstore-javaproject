@@ -53,3 +53,74 @@ pipeline {
         }
     }
 }
+
+-----------------------------------------------------------------------------------------------------------------------------------
+
+pipeline {
+    agent any
+    tools{
+        jdk  'jdk17'
+        maven  'maven3'
+    }
+    
+    environment{
+        SCANNER_HOME= tool 'sonar-scanner'
+    }
+    
+    stages {
+        stage('Git Checkout') {
+            steps {
+              git 'https://github.com/selenophid/onlinebookstore-javaproject.git' 
+        }
+        
+        stage('COMPILE') {
+            steps {
+                sh "mvn clean compile -DskipTests=true"
+            }
+        }
+        
+        stage('OWASP Scan') {
+            steps {
+                dependencyCheck additionalArguments: '--scan ./ ', odcInstallation: 'DC'
+                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+            }
+        }
+        
+        stage('Sonarqube') {
+            steps {
+                withSonarQubeEnv('sonar-server'){
+                   sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=OnlineBookStore \
+                   -Dsonar.java.binaries=. \
+                   -Dsonar.projectKey=OnlineBookStore '''
+               }
+            }
+        }
+        
+        stage('Build') {
+            steps {
+                sh "mvn clean package -DskipTests=true"
+            }
+        }
+        
+        stage('Docker Build & Push') {
+            steps {
+                script{
+                    withDockerRegistry(credentialsId: 'docker-cred', toolName: 'docker') {
+                        
+                        sh "docker build -t onlinebookstore:1.0 ."
+                        sh "docker push alinabagwan12345/onlinebookstore:1.0"
+                    }
+                }
+            }
+        }
+        stage('Deploy to docker container') {
+            steps {
+                script{
+                    withDockerRegistry(credentialsId: 'docker-cred', toolName: 'docker'){
+                        sh " docker run -d -p 8089:9000 alinabagwan12345/onlinebookstore:1.0"
+                    }
+                }
+            }
+                    
+        }
+}
